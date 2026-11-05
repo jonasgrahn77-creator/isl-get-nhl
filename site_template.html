@@ -1,0 +1,408 @@
+<title>Isläget NHL</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Saira+Condensed:wght@600;700&display=swap">
+<style>
+/* Layout: en rink sedd från ovan. Varje percentil är en puck mellan blålinjerna. */
+:root {
+  --ice: #E9F1F5; --board: #FFFFFF; --ink: #10263A; --muted: #4F6576; --line: #C5D5DE;
+  --red: #C21F2E; --blue: #1557A6; --soft: #DCE8EE; --warn-bg: #FFF1D6; --warn-fg: #6B4A00;
+  --display: "Saira Condensed", "Arial Narrow", Arial, sans-serif;
+  --body: "Barlow", "Segoe UI", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --ice: #0B1923; --board: #122534; --ink: #E6F0F5; --muted: #9DB2C0; --line: #2B4254;
+  --red: #F2707B; --blue: #74AEF0; --soft: #1B3244; --warn-bg: #3A2E10; --warn-fg: #F5D78E; color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --ice: #0B1923; --board: #122534; --ink: #E6F0F5; --muted: #9DB2C0; --line: #2B4254;
+  --red: #F2707B; --blue: #74AEF0; --soft: #1B3244; --warn-bg: #3A2E10; --warn-fg: #F5D78E; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--ice); color: var(--ink); font: 400 15px/1.45 var(--body); }
+.wrap { max-width: 1180px; margin: 0 auto; padding-block: 28px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 24px; }
+h1 { font: 700 clamp(44px, 8vw, 72px)/.9 var(--display); margin: 0; letter-spacing: .01em; text-transform: uppercase; }
+.sub { margin: 8px 0 0; color: var(--muted); max-width: 62ch; }
+.stamp { color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+.stamp b { color: var(--ink); font-weight: 600; }
+.note { background: var(--warn-bg); color: var(--warn-fg); padding: 10px 14px; border-radius: 4px; }
+.tabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 2px solid var(--ink); }
+.tabs button { font: 700 19px var(--display); letter-spacing: .03em; text-transform: uppercase; color: var(--muted); background: none; border: 0; padding: 8px 14px; cursor: pointer; white-space: nowrap; border-radius: 4px 4px 0 0; }
+.tabs button[aria-selected=true] { background: var(--ink); color: var(--board); }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; }
+input[type=search], select { font: inherit; color: var(--ink); background: var(--board); border: 1px solid var(--line); border-radius: 4px; padding: 9px 11px; min-width: 0; }
+#q { flex: 1 1 220px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; background: var(--board); }
+.seg button { font: 500 14px var(--body); color: var(--muted); background: none; border: 0; padding: 9px 13px; cursor: pointer; }
+.seg button[aria-pressed=true] { background: var(--ink); color: var(--board); }
+.check { display: inline-flex; gap: 7px; align-items: center; color: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; color: var(--muted); font-size: 13.5px; }
+.legend .rink { width: 110px; flex: none; }
+.tablebox { overflow-x: auto; background: var(--board); border: 1px solid var(--line); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+#tbl { min-width: 860px; }
+th { padding: 0; text-align: right; border-bottom: 2px solid var(--ink); white-space: nowrap; }
+th.l, td.l { text-align: left; }
+th button { all: unset; display: block; box-sizing: border-box; width: 100%; padding: 10px; cursor: pointer; font: 700 15px var(--display); letter-spacing: .03em; text-transform: uppercase; }
+th button:focus-visible, .name:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+th[aria-sort] button { color: var(--blue); }
+td { padding: 9px 10px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+tbody tr.row:hover, tr.open { background: var(--soft); }
+.name { all: unset; cursor: pointer; font-weight: 600; }
+.name:hover { color: var(--blue); text-decoration: underline; }
+.plain { font-weight: 600; }
+.rate { display: inline-flex; align-items: center; gap: 9px; justify-content: flex-end; }
+.rate b { font: 700 21px/1 var(--display); min-width: 2ch; }
+.rate .rink { width: 74px; }
+.rink { position: relative; display: block; height: 10px; background: var(--soft); border-radius: 5px; }
+.rink::before, .rink::after { content: ""; position: absolute; top: 0; bottom: 0; width: 2px; background: var(--blue); }
+.rink::before { left: 33.3%; } .rink::after { left: 66.6%; }
+.rink i { position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; margin-left: -1px; background: var(--red); }
+.rink u { position: absolute; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: var(--ink); border: 2px solid var(--board); z-index: 1; }
+tr.open .rink, tbody tr.row:hover .rink { background: var(--board); }
+.pill { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 13px; font-weight: 500; }
+.pill.Hög { background: var(--ink); color: var(--board); }
+.pill.Medel { background: var(--soft); color: var(--ink); box-shadow: inset 0 0 0 1px var(--muted); }
+.pill.Låg, .pill.none { color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); }
+.up { color: var(--blue); } .down { color: var(--red); } .dim { color: var(--muted); }
+.detail td { white-space: normal; text-align: left; padding: 16px 14px 20px; background: var(--soft); }
+.detailgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 18px 30px; position: sticky; left: 14px; max-width: min(1120px, calc(100vw - 62px)); }
+.detailgrid > div { min-width: 0; }
+h3 { font: 700 18px var(--display); text-transform: uppercase; letter-spacing: .03em; margin: 0 0 9px; }
+.metric { display: grid; grid-template-columns: 1fr auto; gap: 3px 10px; margin-bottom: 11px; }
+.metric .rink { grid-column: 1 / -1; background: var(--board); }
+.metric b { font-weight: 600; }
+.mini { width: 100%; }
+.detail .mini td { padding: 5px 4px; border-bottom: 1px solid var(--line); font-size: 14px; background: none; text-align: right; white-space: nowrap; }
+.detail .mini td.l { text-align: left; }
+.mini th { padding: 5px 4px; font: 600 13px var(--body); color: var(--muted); border-bottom: 1px solid var(--muted); }
+.facts { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; margin: 0; }
+.facts dd { margin: 0; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.facts dt { color: var(--muted); }
+.empty { padding: 34px 16px; text-align: center; color: var(--muted); }
+footer { color: var(--muted); font-size: 13.5px; display: grid; gap: 5px; max-width: 80ch; }
+footer a { color: var(--blue); }
+@media (max-width: 560px) { .detailgrid { max-width: calc(100vw - 62px); grid-template-columns: minmax(0, 1fr); } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Isläget</h1>
+      <p class="sub">NHL:s utespelare, målvakter, kedjor och lag, uppdaterade varje natt.</p>
+    </div>
+    <div class="stamp" id="stamp"></div>
+  </header>
+  <div class="note" id="note" hidden></div>
+  <div class="tabs" role="tablist" id="tabs"></div>
+  <div class="controls">
+    <input id="q" type="search" aria-label="Sök">
+    <div class="seg" role="group" id="seg" aria-label="Filter"></div>
+    <select id="team" aria-label="Lag"><option value="">Alla lag</option></select>
+    <label class="check" id="checkbox"><input id="chk" type="checkbox"> <span id="chklabel"></span></label>
+  </div>
+  <div class="legend">
+    <span class="rink" id="legendrink" aria-hidden="true"><i></i><u style="left:80%"></u></span>
+    <span id="legendtext"></span>
+    <span id="count"></span>
+  </div>
+  <div class="tablebox"><table id="tbl">
+    <thead><tr id="head"></tr></thead>
+    <tbody id="rows"></tbody>
+  </table><div class="empty" id="empty" hidden>Inget matchar filtret. Ändra sökningen eller välj fler lag.</div></div>
+  <footer>
+    <div>Data: <a href="https://moneypuck.com/data.htm">MoneyPuck.com</a>. MoneyPuck lämnar inga garantier för datakvaliteten.</div>
+    <div id="method"></div>
+  </footer>
+</div>
+
+<script id="data" type="application/json">/*__DATA__*/null</script>
+<script>
+(function () {
+  var DATA = JSON.parse(document.getElementById("data").textContent);
+  var $ = function (id) { return document.getElementById(id); };
+  function fmt(v, d) {
+    if (v === null || v === undefined) return "–";
+    return Number(v).toLocaleString("sv-SE", { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }).replace("-", "−");
+  }
+  function signed(v, d) { return v === null || v === undefined ? "–" : (v > 0 ? "+" : "") + fmt(v, d); }
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+  function rink(pct) {
+    var r = el("span", "rink"); r.setAttribute("aria-hidden", "true");
+    r.appendChild(el("i"));
+    if (pct !== null && pct !== undefined) { var u = el("u"); u.style.left = Math.max(3, Math.min(97, pct)) + "%"; r.appendChild(u); }
+    return r;
+  }
+  function norm(s) { return String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase(); }
+  function ratingCell(p) {
+    var td = el("td"), w = el("span", "rate");
+    if (p.rating !== null) w.appendChild(rink(p.rating));
+    w.appendChild(el("b", p.rating === null ? "dim" : "", fmt(p.rating)));
+    td.appendChild(w); return td;
+  }
+  function pillCell(p) { var c = el("td", "l"); c.appendChild(el("span", "pill " + (p.rating === null ? "none" : p.conf), p.conf)); return c; }
+  function deltaCell(p) { return el("td", p.delta > 0 ? "up" : p.delta < 0 ? "down" : "dim", signed(p.delta)); }
+  function metric(label, value, pct) {
+    var m = el("div", "metric");
+    m.appendChild(el("span", "", label)); m.appendChild(el("b", "", value)); m.appendChild(rink(pct));
+    return m;
+  }
+  function miniTable(head, rows) {
+    var t = el("table", "mini"), th = el("thead"), hr = el("tr");
+    head.forEach(function (x, i) { hr.appendChild(el("th", i ? "" : "l", x)); });
+    th.appendChild(hr); t.appendChild(th);
+    var tb = el("tbody");
+    rows.forEach(function (row) {
+      var r = el("tr");
+      row.forEach(function (x, i) { r.appendChild(el("td", i ? "" : "l", x)); });
+      tb.appendChild(r);
+    });
+    t.appendChild(tb); return t;
+  }
+  function facts(list) {
+    var dl = el("dl", "facts");
+    list.forEach(function (f) { dl.appendChild(el("dt", "", f[0])); dl.appendChild(el("dd", "", f[1])); });
+    return dl;
+  }
+  function section(title) { var d = el("div"); d.appendChild(el("h3", "", title)); return d; }
+  var SITS = [["all", "Totalt"], ["5on5", "5 mot 5"], ["5on4", "Powerplay"], ["4on5", "Boxplay"]];
+
+  function skaterDetail(p) {
+    var g = el("div", "detailgrid"), a = section("Nu och prognos, 5 mot 5");
+    function pair(now, fc, d, sg) { return (sg ? signed(now, d) : fmt(now, d)) + " nu · " + (sg ? signed(fc, d) : fmt(fc, d)) + " prognos"; }
+    a.appendChild(metric("Skapad xG/60", pair(p.cxg, p.fc.cxg, 2), p.pct.cxg));
+    a.appendChild(metric("Poäng/60", pair(p.p60, p.fc.p60, 2), p.pct.p60));
+    a.appendChild(metric("xG emot/60 (lägre är bättre)", pair(p.xga, p.fc.xga, 2), p.pct.xga));
+    a.appendChild(metric("Relativ xG%", pair(p.rel, p.fc.rel, 1, true), p.pct.rel));
+    g.appendChild(a);
+    var b = section("Alla situationer");
+    b.appendChild(miniTable(["", "Min", "M", "P", "Skott", "xG"], SITS.map(function (s) {
+      var v = p.sits[s[0]]; return [s[1], fmt(v.min), fmt(v.g), fmt(v.p), fmt(v.sog), fmt(v.xg, 1)];
+    })));
+    g.appendChild(b);
+    var c = section("Sammanhang"), list = [
+      ["Lagets xG%, 5 mot 5", p.teamXg === null ? "–" : fmt(p.teamXg, 1) + " %"]];
+    if (p.line) { list.push(["Vanligaste kedja/par", p.line.name]); list.push(["Tillsammans, min och xG%", fmt(p.line.min) + " min, " + fmt(p.line.xg, 1) + " %"]); }
+    if (p.prev) list.push(["Förra säsongen", p.prev.gp + " GP, " + p.prev.g + " M, " + p.prev.p + " P"]);
+    list = list.concat([["Mål minus xG, 5 mot 5", signed(p.gax, 1)], ["Starter i offensiv zon", p.oz === null ? "–" : fmt(p.oz) + " %"],
+      ["Utvisningsnetto", signed(p.pn)], ["Puckvinster minus puckförluster", signed(p.puck)]]);
+    c.appendChild(facts(list)); g.appendChild(c);
+    return g;
+  }
+  function goalieDetail(p) {
+    var g = el("div", "detailgrid"), b = section("Situationer");
+    b.appendChild(miniTable(["", "Min", "Skott", "Insläppta", "GSAx", "Rädd%"], SITS.map(function (s) {
+      var v = p.sits[s[0]]; return [s[1], fmt(v.min), fmt(v.sog), fmt(v.ga), signed(v.gsax, 1), fmt(v.sv, 1)];
+    })));
+    g.appendChild(b);
+    var c = section("Efter chansens farlighet");
+    c.appendChild(miniTable(["", "Oblockerade skott", "Insläppta", "GSAx"], [["low", "Låg"], ["medium", "Medel"], ["high", "Hög"]].map(function (d) {
+      var v = p.danger[d[0]]; return [d[1], fmt(v.shots), fmt(v.goals), signed(v.gsax, 1)];
+    })));
+    g.appendChild(c);
+    if (DATA.prevLabel) {
+      var d = section("Förra säsongen");
+      d.appendChild(facts([["GSAx", signed(p.prevGsax, 1)], ["Räddningsprocent", p.prevSv === null || p.prevSv === undefined ? "–" : fmt(p.prevSv, 1) + " %"]]));
+      g.appendChild(d);
+    }
+    return g;
+  }
+  function lineDetail(p) {
+    var g = el("div", "detailgrid"), c = section(p.type === "line" ? "Kedjan" : "Backparet");
+    var ls = p.players.map(function (n, i) { return ["Spelare " + (i + 1), n]; });
+    if (p.prevMin !== null && p.prevMin !== undefined) ls.push(["Förra säsongen", fmt(p.prevMin) + " min, " + fmt(p.prevXg, 1) + " %"]);
+    c.appendChild(facts(ls));
+    g.appendChild(c);
+    return g;
+  }
+
+  var VIEWS = {
+    utespelare: {
+      tab: "Utespelare", rows: DATA.skaters, key: "id", prefix: "p", sort: "rating", search: "Sök spelare",
+      seg: [["", "Alla"], ["F", "Forwards"], ["D", "Backar"]], segField: "group", legend: true,
+      check: "Bara med betyg", checkFn: function (p) { return p.rating !== null; }, detail: skaterDetail, noun: "spelare",
+      legendText: "Pucken visar prognosens percentil mot samma position: blålinjerna är 33 och 67, röda linjen är 50. Längre åt höger är bättre.",
+      method: "Betyget är en prognos av spelarens fortsatta nivå, tränad på 2008–2025 och testad på 2022–2025. Den väger samman Game Score per 60 och relativ xG%. Säsongen hittills och tidigare säsonger räknas ihop, och lite data dras mot positionens snitt. Säkerheten visar hur mycket data prognosen vilar på. Prognosen är osäker för enskilda spelare och bygger bara på statistik, inte på ålder, skador eller nya roller.",
+      cols: [
+        { k: "rating", t: "Betyg", dir: -1, cell: ratingCell }, { k: "name", t: "Spelare", l: 1, dir: 1, open: 1 },
+        { k: "team", t: "Lag", l: 1, dir: 1 }, { k: "pos", t: "Pos", l: 1, dir: 1 },
+        { k: "conf", t: "Säkerhet", l: 1, dir: 1, cell: pillCell }, { k: "delta", t: "7 dgr", dir: -1, cell: deltaCell },
+        { k: "gp", t: "GP", dir: -1 }, { k: "pts", t: "P", dir: -1 }, { k: "min", t: "Min 5v5", dir: -1 },
+        { k: "cxg", t: "Skapad xG/60", dir: -1, d: 2 }, { k: "rel", t: "Rel xG%", dir: -1, d: 1, s: 1 }]
+    },
+    malvakter: {
+      tab: "Målvakter", rows: DATA.goalies, key: "id", prefix: "g", sort: "rating", search: "Sök målvakt", legend: true,
+      check: "Bara med betyg", checkFn: function (p) { return p.rating !== null; }, detail: goalieDetail, noun: "målvakter",
+      legendText: "Pucken visar percentilen bland målvakter: blålinjerna är 33 och 67, röda linjen är 50. GSAx är sparade mål över förväntan.",
+      method: "Betyget bygger på årets GSAx per 60 minuter i alla situationer och är inte testat mot framtida resultat. Måttet svänger mycket över kort tid, så resultatet dras starkt mot snittet och målvakter under 200 minuter får inget betyg. Mål i tom bur räknas inte mot målvakten.",
+      cols: [
+        { k: "rating", t: "Betyg", dir: -1, cell: ratingCell }, { k: "name", t: "Målvakt", l: 1, dir: 1, open: 1 },
+        { k: "team", t: "Lag", l: 1, dir: 1 }, { k: "conf", t: "Säkerhet", l: 1, dir: 1, cell: pillCell },
+        { k: "delta", t: "7 dgr", dir: -1, cell: deltaCell }, { k: "gp", t: "GP", dir: -1 }, { k: "min", t: "Min", dir: -1 },
+        { k: "sog", t: "Skott", dir: -1 }, { k: "ga", t: "Insläppta", dir: 1 }, { k: "sv", t: "Rädd%", dir: -1, d: 1 },
+        { k: "gsax", t: "GSAx", dir: -1, d: 1, s: 1 }, { k: "g60", t: "GSAx/60", dir: -1, d: 2, s: 1 }]
+    },
+    kedjor: {
+      tab: "Kedjor", rows: DATA.lines, key: "id", prefix: "k", sort: "xg", search: "Sök spelare i kedja eller par",
+      seg: [["", "Alla"], ["line", "Kedjor"], ["pairing", "Backpar"]], segField: "type", detail: lineDetail, noun: "kedjor och par",
+      check: "Minst 30 minuter", checkDefault: true, checkFn: function (p) { return p.min >= 30; },
+      legendText: "Allt gäller 5 mot 5. xG% är andelen av de förväntade målen när kombinationen är på isen.",
+      method: "MoneyPucks fil innehåller kedjor och backpar med minst 10 minuter tillsammans. Korta perioder säger lite, så filtret visar bara 30 minuter eller mer från början.",
+      searchText: function (p) { return p.name + " " + p.players.join(" "); },
+      cols: [
+        { k: "name", t: "Kombination", l: 1, dir: 1, open: 1 }, { k: "team", t: "Lag", l: 1, dir: 1 },
+        { k: "type", t: "Typ", l: 1, dir: 1, text: function (p) { return p.type === "line" ? "Kedja" : "Backpar"; } },
+        { k: "gp", t: "GP", dir: -1 }, { k: "min", t: "Min", dir: -1 }, { k: "xg", t: "xG%", dir: -1, d: 1 },
+        { k: "xgf", t: "xG för/60", dir: -1, d: 2 }, { k: "xga", t: "xG emot/60", dir: 1, d: 2 },
+        { k: "gf", t: "Mål för", dir: -1 }, { k: "ga", t: "Mål emot", dir: 1 }]
+    },
+    lag: {
+      tab: "Lag", rows: DATA.teams, key: "team", sort: "xg", search: "Sök lag", noun: "lag", hideTeam: true,
+      legendText: "xG% och xG per 60 gäller 5 mot 5. Avslut är mål minus xG i alla situationer.",
+      method: "GSAx visar målvakter som nu tillhör laget, även för matcher de spelat i ett annat lag.",
+      cols: [
+        { k: "team", t: "Lag", l: 1, dir: 1, bold: 1 }, { k: "gp", t: "GP", dir: -1 }, { k: "gf", t: "GM", dir: -1 }, { k: "ga", t: "IM", dir: 1 },
+        { k: "diff", t: "+/−", dir: -1, s: 1 }, { k: "xg", t: "xG%", dir: -1, d: 1 }, { k: "xgf", t: "xG för/60", dir: -1, d: 2 },
+        { k: "xga", t: "xG emot/60", dir: 1, d: 2 }, { k: "pp", t: "PP xG/60", dir: -1, d: 2 }, { k: "pk", t: "BP xG emot/60", dir: 1, d: 2 },
+        { k: "fin", t: "Avslut", dir: -1, d: 1, s: 1 }, { k: "gsax", t: "GSAx", dir: -1, d: 1, s: 1 }]
+    }
+  };
+  if (DATA.prevLabel) {
+    var pl = "xG% " + DATA.prevLabel;
+    VIEWS.malvakter.cols.push({ k: "prevGsax", t: "GSAx " + DATA.prevLabel, dir: -1, d: 1, s: 1 });
+    VIEWS.kedjor.cols.splice(6, 0, { k: "prevXg", t: pl, dir: -1, d: 1 });
+    VIEWS.lag.cols.splice(6, 0, { k: "prevXg", t: pl, dir: -1, d: 1 });
+    $("tbl").style.minWidth = "960px";
+  }
+  var state = { view: "utespelare", open: null, q: "", seg: "", team: "", chk: false, sort: null, dir: -1 };
+
+  $("stamp").appendChild(document.createTextNode("Säsong " + DATA.season + " · uppdaterad "));
+  $("stamp").appendChild(el("b", "", DATA.updated));
+  if (DATA.note) { $("note").textContent = DATA.note; $("note").hidden = false; }
+  Array.from(new Set(DATA.teams.map(function (t) { return t.team; }))).sort().forEach(function (t) {
+    var o = el("option", "", t); o.value = t; $("team").appendChild(o);
+  });
+  Object.keys(VIEWS).forEach(function (name) {
+    var b = el("button", "", VIEWS[name].tab); b.type = "button"; b.setAttribute("role", "tab"); b.id = "tab-" + name;
+    b.addEventListener("click", function () { switchView(name); });
+    $("tabs").appendChild(b);
+  });
+
+  function setHash(h) {
+    try { history.replaceState(null, "", h ? "#" + h : location.pathname + location.search); } catch (e) { location.hash = h; }
+  }
+  function switchView(name, open, keepHash) {
+    var v = VIEWS[name];
+    state.view = name; state.open = open === undefined ? null : open; state.q = ""; state.seg = ""; state.team = "";
+    state.chk = !!v.checkDefault; state.sort = v.sort;
+    state.dir = (v.cols.filter(function (c) { return c.k === v.sort; })[0] || { dir: -1 }).dir;
+    $("q").value = ""; $("q").placeholder = v.search; $("q").setAttribute("aria-label", v.search); $("team").value = "";
+    $("team").hidden = !!v.hideTeam; $("chk").checked = state.chk;
+    $("checkbox").hidden = !v.check; if (v.check) $("chklabel").textContent = v.check;
+    $("legendrink").hidden = !v.legend; $("legendtext").textContent = v.legendText; $("method").textContent = v.method;
+    var seg = $("seg"); seg.textContent = ""; seg.hidden = !v.seg;
+    (v.seg || []).forEach(function (s) {
+      var b = el("button", "", s[1]); b.type = "button"; b.setAttribute("aria-pressed", s[0] === "" ? "true" : "false");
+      b.addEventListener("click", function () {
+        state.seg = s[0];
+        Array.from(seg.children).forEach(function (o) { o.setAttribute("aria-pressed", o === b ? "true" : "false"); });
+        render();
+      });
+      seg.appendChild(b);
+    });
+    Object.keys(VIEWS).forEach(function (n) { $("tab-" + n).setAttribute("aria-selected", n === name ? "true" : "false"); });
+    var head = $("head"); head.textContent = "";
+    v.cols.forEach(function (c) {
+      var th = el("th", c.l ? "l" : ""); th.dataset.k = c.k; th.scope = "col";
+      var b = el("button", "", c.t); b.type = "button";
+      b.addEventListener("click", function () {
+        if (state.sort === c.k) state.dir = -state.dir; else { state.sort = c.k; state.dir = c.dir; }
+        render();
+      });
+      th.appendChild(b); head.appendChild(th);
+    });
+    if (!keepHash) setHash(name === "utespelare" ? "" : name);
+    render();
+  }
+  function compare(a, b) {
+    var x = a[state.sort], y = b[state.sort], lbl = VIEWS[state.view].key;
+    var xn = x === null || x === undefined, yn = y === null || y === undefined;
+    var tie = String(a.name || a[lbl]).localeCompare(String(b.name || b[lbl]), "sv");
+    if (xn || yn) return xn && yn ? tie : xn ? 1 : -1;
+    var r = typeof x === "string" ? x.localeCompare(y, "sv") : x - y;
+    return (r * state.dir) || tie;
+  }
+  function visible() {
+    var v = VIEWS[state.view], q = norm(state.q);
+    return v.rows.filter(function (p) {
+      var text = v.searchText ? v.searchText(p) : (p.name || p.team);
+      return (!q || norm(text).indexOf(q) >= 0) && (!state.team || p.team === state.team) &&
+        (!state.seg || p[v.segField] === state.seg) && (!state.chk || !v.checkFn || v.checkFn(p));
+    }).sort(compare);
+  }
+  function render() {
+    var v = VIEWS[state.view];
+    Array.from($("head").children).forEach(function (th) {
+      if (th.dataset.k === state.sort) th.setAttribute("aria-sort", state.dir < 0 ? "descending" : "ascending");
+      else th.removeAttribute("aria-sort");
+    });
+    var list = visible(), body = $("rows"), f = document.createDocumentFragment();
+    body.textContent = "";
+    list.forEach(function (p) {
+      var open = state.open === p[v.key], tr = el("tr", "row" + (open ? " open" : ""));
+      v.cols.forEach(function (c) {
+        if (c.cell) { tr.appendChild(c.cell(p)); return; }
+        var text = c.text ? c.text(p) : typeof p[c.k] === "string" ? p[c.k] : c.s ? signed(p[c.k], c.d) : fmt(p[c.k], c.d);
+        var td = el("td", c.l ? "l" : "");
+        if (c.open) {
+          var b = el("button", "name", text); b.type = "button"; b.setAttribute("aria-expanded", open ? "true" : "false");
+          b.addEventListener("click", function () { toggle(p[v.key]); });
+          td.appendChild(b);
+        } else if (c.bold) { td.appendChild(el("span", "plain", text)); } else { td.textContent = text; }
+        tr.appendChild(td);
+      });
+      f.appendChild(tr);
+      if (open) {
+        var dr = el("tr", "detail"), dt = el("td"); dt.colSpan = v.cols.length;
+        dt.appendChild(v.detail(p)); dr.appendChild(dt); f.appendChild(dr);
+      }
+    });
+    body.appendChild(f);
+    $("empty").hidden = list.length > 0;
+    $("count").textContent = list.length + " av " + v.rows.length + " " + v.noun;
+  }
+  function toggle(id) {
+    state.open = state.open === id ? null : id;
+    var v = VIEWS[state.view];
+    setHash(state.open ? v.prefix + state.open : state.view === "utespelare" ? "" : state.view);
+    render();
+  }
+  $("q").addEventListener("input", function (e) { state.q = e.target.value; render(); });
+  $("chk").addEventListener("change", function (e) { state.chk = e.target.checked; render(); });
+  $("team").addEventListener("change", function (e) { state.team = e.target.value; render(); });
+  function route() {
+    var h = location.hash.slice(1), m = /^(p|g|k)(\d+)$/.exec(h);
+    if (m) {
+      var name = { p: "utespelare", g: "malvakter", k: "kedjor" }[m[1]], v = VIEWS[name];
+      var id = name === "kedjor" ? m[2] : Number(m[2]);
+      if (v.rows.some(function (r) { return r[v.key] === id; })) {
+        switchView(name, id, true);
+        // Öppnad länk ska visa raden även om filtret annars döljer den
+        state.chk = false; $("chk").checked = false; render();
+        return;
+      }
+    }
+    switchView(VIEWS[h] ? h : "utespelare", undefined, true);
+  }
+  window.addEventListener("hashchange", route);
+  route();
+})();
+</script>
